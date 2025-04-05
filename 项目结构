@@ -1,0 +1,33 @@
+resume-system/
+├── public/
+│   ├── favicon.ico
+│   └── index.html
+├── src/
+│   ├── assets/
+│   │   ├── fonts/
+│   │   ├── images/
+│   │   └── styles/
+│   ├── components/
+│   │   ├── common/
+│   │   ├── resume/
+│   │   ├── interview/
+│   │   └── statistics/
+│   ├── router/
+│   ├── store/
+│   ├── views/
+│   │   ├── Login.vue
+│   │   ├── ResumeManagement.vue
+│   │   ├── ResumeRecommendation.vue
+│   │   ├── JobProgressStatistics.vue
+│   │   └── InterviewDetailView.vue
+│   ├── services/
+│   │   ├── api.js
+│   │   ├── auth.js
+│   │   └── resume.js
+│   ├── utils/
+│   ├── App.vue
+│   └── main.js
+├── .gitignore
+├── babel.config.js
+├── package.json
+└── vue.config.js 
