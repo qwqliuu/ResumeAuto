@@ -5,23 +5,28 @@ import ResumeEditor from '@/components/resume/ResumeEditor.vue'
 const routes = [
   {
     path: '/',
-    redirect: '/resumes'
+    redirect: '/resume/list'
   },
   {
-    path: '/resumes',
-    name: 'ResumeList',
-    component: ResumeList
-  },
-  {
-    path: '/resume/edit/:id',
-    name: 'ResumeEditor',
-    component: ResumeEditor
+    path: '/resume',
+    children: [
+      {
+        path: 'list',
+        name: 'ResumeList',
+        component: ResumeList
+      },
+      {
+        path: 'editor/:id?',
+        name: 'ResumeEditor',
+        component: ResumeEditor
+      }
+    ]
   }
 ]
 
 const router = createRouter({
-  history: createWebHistory(process.env.BASE_URL),
+  history: createWebHistory(),
   routes
 })
 
-export default router 
+export default router

@@ -1,0 +1,26 @@
+export const THEME_CONFIG = {
+  // 主色调 - 蓝
+  PRIMARY: '#2B6DE5',
+  PRIMARY_LIGHT: '#4C84E9',
+  PRIMARY_DARK: '#1E5ACC',
+  
+  // 背景色
+  BACKGROUND: '#F5F7FA',
+  BACKGROUND_LIGHT: '#FFFFFF',
+  BACKGROUND_DARK: '#E8ECF3',
+  
+  // 文字颜色
+  TEXT_PRIMARY: '#333333',
+  TEXT_SECONDARY: '#666666',
+  TEXT_HINT: '#999999',
+  
+  // 边框颜色
+  BORDER: '#E4E7ED',
+  BORDER_LIGHT: '#EBEEF5',
+  
+  // 功能色
+  SUCCESS: '#67C23A',
+  WARNING: '#E6A23C',
+  DANGER: '#F56C6C',
+  INFO: '#909399'
+} 

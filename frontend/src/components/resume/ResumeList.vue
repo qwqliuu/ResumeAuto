@@ -2,90 +2,131 @@
   <div class="resume-list">
     <div class="header">
       <h2>我的简历</h2>
-      <button class="create-btn" @click="createNewResume">新建简历</button>
+      <el-button type="primary" @click="createNewResume">
+        <el-icon><Plus /></el-icon>新建简历
+      </el-button>
     </div>
     
     <div class="resume-grid">
-      <div v-for="resume in resumes" :key="resume.id" class="resume-card">
+      <el-card 
+        v-for="resume in resumes" 
+        :key="resume.id" 
+        class="resume-card"
+        @click="openResume(resume.id)"
+      >
         <div class="resume-info">
           <h3>{{ resume.title }}</h3>
-          <p>最后更新: {{ formatDate(resume.updateTime) }}</p>
-          <p>版本: {{ resume.version }}</p>
+          <p class="update-time">最后更新：{{ formatDate(resume.updateTime) }}</p>
         </div>
         <div class="resume-actions">
-          <button @click="editResume(resume.id)">编辑</button>
-          <button @click="exportPDF(resume.id)">导出PDF</button>
-          <button @click="deleteResume(resume.id)" class="delete-btn">删除</button>
+          <el-button type="text" @click.stop="exportPDF(resume.id)">
+            导出PDF
+          </el-button>
+          <el-button type="text" class="delete-btn" @click.stop="confirmDelete(resume.id)">
+            删除
+          </el-button>
         </div>
-      </div>
+      </el-card>
     </div>
   </div>
 </template>
 
 <script>
-import { resumeApi } from '@/api/resume'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { resumeService } from '@/services/resumeService'
+import { THEME_CONFIG } from '@/config/theme.config'
+import { Plus } from '@element-plus/icons-vue'
 
 export default {
   name: 'ResumeList',
-  data() {
-    return {
-      resumes: []
+  components: { Plus },
+  
+  setup() {
+    const router = useRouter()
+    const resumes = ref([])
+
+    // 获取简历列表
+    const fetchResumes = async () => {
+      try {
+        const data = await resumeService.getList()
+        resumes.value = data
+      } catch (error) {
+        ElMessage.error('获取简历列表失败')
+        console.error(error)
+      }
     }
-  },
-  methods: {
-    async fetchResumes() {
+
+    // 新建简历
+    const createNewResume = () => {
+      router.push('/resume/editor')
+    }
+
+    // 打开简历
+    const openResume = (id) => {
+      router.push(`/resume/editor/${id}`)
+    }
+
+    // 导出PDF
+    const exportPDF = async (id) => {
       try {
-        const data = await resumeApi.getList()
-        this.resumes = data
-      } catch (error) {
-        console.error('获取简历列表失败:', error)
-      }
-    },
-    formatDate(date) {
-      return new Date(date).toLocaleString()
-    },
-    async createNewResume() {
-      try {
-        await resumeApi.create({
-          title: '新简历',
-          content: '',
-          version: 1
-        })
-        this.fetchResumes()
-      } catch (error) {
-        console.error('创建简历失败:', error)
-      }
-    },
-    editResume(id) {
-      this.$router.push(`/resume/edit/${id}`)
-    },
-    async deleteResume(id) {
-      if (confirm('确定要删除这份简历吗？')) {
-        try {
-          await resumeApi.delete(id)
-          this.fetchResumes()
-        } catch (error) {
-          console.error('删除简历失败:', error)
-        }
-      }
-    },
-    async exportPDF(id) {
-      try {
-        const data = await resumeApi.exportPDF(id)
-        const url = window.URL.createObjectURL(new Blob([data]))
+        const blob = await resumeService.exportPDF(id)
+        const url = window.URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
         link.download = '简历.pdf'
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
       } catch (error) {
-        console.error('导出PDF失败:', error)
+        ElMessage.error('导出PDF失败')
+        console.error(error)
       }
     }
-  },
-  mounted() {
-    this.fetchResumes()
+
+    // 删除简历
+    const confirmDelete = (id) => {
+      ElMessageBox.confirm('确定要删除这份简历吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(async () => {
+        try {
+          await resumeService.delete(id)
+          ElMessage.success('删除成功')
+          fetchResumes()
+        } catch (error) {
+          ElMessage.error('删除失败')
+          console.error(error)
+        }
+      })
+    }
+
+    // 格式化日期
+    const formatDate = (dateString) => {
+      const date = new Date(dateString)
+      return date.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    }
+
+    onMounted(fetchResumes)
+
+    return {
+      resumes,
+      createNewResume,
+      openResume,
+      exportPDF,
+      confirmDelete,
+      formatDate,
+      THEME_CONFIG
+    }
   }
 }
 </script>
@@ -99,16 +140,12 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
-.create-btn {
-  background-color: #4CAF50;
-  color: white;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
+.header h2 {
+  color: v-bind('THEME_CONFIG.TEXT_PRIMARY');
+  margin: 0;
 }
 
 .resume-grid {
@@ -118,37 +155,37 @@ export default {
 }
 
 .resume-card {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 15px;
-  background-color: white;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.resume-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.resume-info {
+  margin-bottom: 16px;
 }
 
 .resume-info h3 {
-  margin: 0 0 10px 0;
+  color: v-bind('THEME_CONFIG.TEXT_PRIMARY');
+  margin: 0 0 8px 0;
 }
 
-.resume-info p {
-  color: #666;
-  margin: 5px 0;
+.update-time {
+  color: v-bind('THEME_CONFIG.TEXT_HINT');
+  font-size: 14px;
+  margin: 0;
 }
 
 .resume-actions {
   display: flex;
-  gap: 10px;
-  margin-top: 15px;
-}
-
-.resume-actions button {
-  padding: 5px 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 .delete-btn {
-  background-color: #ff4444;
-  color: white;
-  border: none !important;
+  color: v-bind('THEME_CONFIG.DANGER');
 }
-</style> 
+</style>

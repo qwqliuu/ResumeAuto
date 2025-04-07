@@ -1,6 +1,6 @@
 export const API_CONFIG = {
-  BASE_URL: 'http://localhost:8090/page',
-  TIMEOUT: 10000,
+  BASE_URL: process.env.VUE_APP_API_BASE_URL,
+  TIMEOUT: parseInt(process.env.VUE_APP_API_TIMEOUT),
   RESUME: {
     LIST: '/api/resumes',
     CREATE: '/api/resumes',

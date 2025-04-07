@@ -1,175 +1,192 @@
 <template>
   <div class="resume-editor">
     <div class="editor-header">
-      <input v-model="resume.title" class="title-input" placeholder="简历标题" @change="saveResume" />
+      <div class="title-section">
+        <el-input
+          v-model="resume.title"
+          placeholder="我的简历"
+          class="title-input"
+        />
+      </div>
       <div class="actions">
-        <button @click="toggleMode">{{ isMarkdown ? '切换富文本' : '切换Markdown' }}</button>
-        <button @click="askAI">AI辅助</button>
-        <button @click="saveResume">保存</button>
-        <button @click="exportPDF">导出PDF</button>
+        <el-button @click="goBack">返回</el-button>
+        <el-button type="primary" @click="saveResume">保存</el-button>
       </div>
     </div>
 
-    <div class="editor-container">
-      <!-- 富文本编辑器 -->
-      <QuillEditor
-        v-if="!isMarkdown"
-        v-model:content="resume.content"
-        contentType="html"
-        theme="snow"
-        toolbar="full"
-        @update:content="onEditorChange"
-      />
-      
-      <!-- Markdown编辑器 -->
-      <textarea
-        v-else
-        v-model="resume.content"
-        class="markdown-editor"
-        @input="onEditorChange"
-      ></textarea>
-    </div>
+    <div class="editor-content">
+      <el-tabs v-model="activeTab" class="section-tabs">
+        <el-tab-pane 
+          v-for="(section, key) in resumeSections" 
+          :key="key"
+          :label="section.title"
+          :name="key"
+        >
+          <div class="section-content">
+            <template v-for="(field, fieldKey) in section.fields" :key="fieldKey">
+              <!-- 输入框 -->
+              <template v-if="field.strategy === 'input'">
+                <el-form-item :label="field.chinese">
+                  <el-input 
+                    v-model="resume.content[key].data[fieldKey].value"
+                    :placeholder="'请输入' + field.chinese"
+                  />
+                </el-form-item>
+              </template>
 
-    <!-- AI助手对话框 -->
-    <div v-if="showAIDialog" class="ai-dialog">
-      <div class="ai-dialog-content">
-        <h3>AI写作助手</h3>
-        <div class="ai-suggestions">
-          <button v-for="(prompt, index) in aiPrompts" 
-                  :key="index"
-                  @click="useAIPrompt(prompt)">
-            {{ prompt.title }}
-          </button>
-        </div>
-        <textarea
-          v-model="aiInput"
-          placeholder="描述你需要AI帮助的内容..."
-        ></textarea>
-        <div class="ai-actions">
-          <button @click="submitToAI">获取建议</button>
-          <button @click="showAIDialog = false">关闭</button>
-        </div>
-        <div v-if="aiResponse" class="ai-response">
-          <p>AI建议：</p>
-          <div v-html="aiResponse"></div>
-          <button @click="applyAISuggestion">应用建议</button>
-        </div>
-      </div>
+              <!-- 日期选择器 -->
+              <template v-else-if="field.strategy === 'date'">
+                <el-form-item :label="field.chinese">
+                  <el-date-picker
+                    v-model="resume.content[key].data[fieldKey].value"
+                    type="date"
+                    :placeholder="'请选择' + field.chinese"
+                  />
+                </el-form-item>
+              </template>
+
+              <!-- 选择器 -->
+              <template v-else-if="field.strategy === 'select'">
+                <el-form-item :label="field.chinese">
+                  <el-select
+                    v-model="resume.content[key].data[fieldKey].value"
+                    :placeholder="'请选择' + field.chinese"
+                  >
+                    <el-option
+                      v-for="option in field.options"
+                      :key="option.value"
+                      :label="option.label"
+                      :value="option.value"
+                    />
+                  </el-select>
+                </el-form-item>
+              </template>
+
+              <!-- 文本域 -->
+              <template v-else-if="field.strategy === 'textarea'">
+                <el-form-item :label="field.chinese">
+                  <el-input
+                    v-model="resume.content[key].data[fieldKey].value"
+                    type="textarea"
+                    :rows="4"
+                    :placeholder="'请输入' + field.chinese"
+                  />
+                </el-form-item>
+              </template>
+            </template>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
     </div>
   </div>
 </template>
 
 <script>
-import { QuillEditor } from '@vueup/vue-quill'
-import '@vueup/vue-quill/dist/vue-quill.snow.css'
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
-import { resumeApi, aiApi } from '@/api/resume'
+import { ref, reactive, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { resumeService } from '@/services/resumeService'
+import { THEME_CONFIG } from '@/config/theme.config'
 
 export default {
   name: 'ResumeEditor',
-  components: {
-    QuillEditor
-  },
-  data() {
-    return {
-      resume: {
-        id: null,
-        title: '',
-        content: '',
-        version: 1
+
+  setup() {
+    const route = useRoute()
+    const router = useRouter()
+    const resumeId = route.params.id
+    const activeTab = ref('basic_info')
+
+    // 简历数据
+    const resume = reactive({
+      id: null,
+      title: '',
+      content: {},
+      version: 1
+    })
+
+    // 简历各部分配置
+    const resumeSections = reactive({
+      basic_info: {
+        title: '基本信息',
+        fields: {}
       },
-      isMarkdown: false,
-      showAIDialog: false,
-      aiInput: '',
-      aiResponse: '',
-      aiPrompts: [
-        { title: '优化工作经历', prompt: '请帮我优化以下工作经历的描述：' },
-        { title: '改进技能描述', prompt: '请帮我改进以下技能描述：' },
-        { title: '完善教育背景', prompt: '请帮我完善以下教育背景：' },
-        { title: '项目经验提升', prompt: '请帮我提升以下项目经验的描述：' }
-      ],
-      saveTimeout: null
-    }
-  },
-  methods: {
-    async fetchResume() {
+      education: {
+        title: '教育背景',
+        fields: {}
+      },
+      work_experience: {
+        title: '工作经验',
+        fields: {}
+      },
+      // ... 其他部分
+    })
+
+    // 获取简历模板
+    const fetchTemplate = async () => {
       try {
-        const id = this.$route.params.id
-        const data = await resumeApi.getById(id)
-        this.resume = data
-      } catch (error) {
-        console.error('获取简历失败:', error)
-      }
-    },
-    onEditorChange() {
-      if (this.saveTimeout) {
-        clearTimeout(this.saveTimeout)
-      }
-      this.saveTimeout = setTimeout(() => {
-        this.saveResume()
-      }, 1000)
-    },
-    async saveResume() {
-      try {
-        const response = await resumeApi.update(this.resume.id, this.resume)
-        this.resume.version = response.version
-      } catch (error) {
-        console.error('保存简历失败:', error)
-      }
-    },
-    toggleMode() {
-      this.isMarkdown = !this.isMarkdown
-    },
-    askAI() {
-      this.showAIDialog = true
-      this.aiResponse = ''
-      this.aiInput = ''
-    },
-    useAIPrompt(prompt) {
-      this.aiInput = prompt.prompt
-    },
-    async submitToAI() {
-      try {
-        const response = await aiApi.getSuggestion(this.aiInput, this.resume.content)
-        this.aiResponse = response.suggestion
-      } catch (error) {
-        console.error('获取AI建议失败:', error)
-      }
-    },
-    applyAISuggestion() {
-      if (this.aiResponse) {
-        this.resume.content += '\n' + this.aiResponse
-        this.showAIDialog = false
-        this.saveResume()
-      }
-    },
-    async exportPDF() {
-      try {
-        const element = document.querySelector('.ql-editor')
-        const canvas = await html2canvas(element)
-        const imgData = canvas.toDataURL('image/png')
-        
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'px',
-          format: 'a4'
+        // 这里应该从后端获取模板配置
+        // 暂时使用 mock 数据
+        const template = await resumeService.getTemplate()
+        Object.keys(template).forEach(key => {
+          if (resumeSections[key]) {
+            resumeSections[key].fields = template[key]
+          }
         })
-        
-        const imgProps = pdf.getImageProperties(imgData)
-        const pdfWidth = pdf.internal.pageSize.getWidth()
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
-        
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
-        pdf.save(`${this.resume.title || '简历'}.pdf`)
       } catch (error) {
-        console.error('导出PDF失败:', error)
+        ElMessage.error('获取模板配置失败')
+        console.error(error)
       }
     }
-  },
-  mounted() {
-    if (this.$route.params.id) {
-      this.fetchResume()
+
+    // 获取简历数据
+    const fetchResumeData = async () => {
+      if (!resumeId) return
+      
+      try {
+        const data = await resumeService.getById(resumeId)
+        Object.assign(resume, data)
+      } catch (error) {
+        ElMessage.error('获取简历数据失败')
+        console.error(error)
+      }
+    }
+
+    // 保存简历
+    const saveResume = async () => {
+      try {
+        if (resumeId) {
+          await resumeService.update(resumeId, resume)
+        } else {
+          await resumeService.create(resume)
+        }
+        ElMessage.success('保存成功')
+        goBack()
+      } catch (error) {
+        ElMessage.error('保存失败')
+        console.error(error)
+      }
+    }
+
+    // 返回列表页
+    const goBack = () => {
+      router.push('/resume/list')
+    }
+
+    onMounted(async () => {
+      await fetchTemplate()
+      if (resumeId) {
+        await fetchResumeData()
+      }
+    })
+
+    return {
+      resume,
+      activeTab,
+      resumeSections,
+      saveResume,
+      goBack,
+      THEME_CONFIG
     }
   }
 }
@@ -187,106 +204,59 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: v-bind('THEME_CONFIG.BACKGROUND_LIGHT');
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.title-section {
+  flex: 1;
+  margin-right: 24px;
 }
 
 .title-input {
-  font-size: 24px;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
   width: 300px;
 }
 
 .actions {
   display: flex;
-  gap: 10px;
+  gap: 12px;
 }
 
-.actions button {
-  padding: 8px 16px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
-  background-color: white;
-}
-
-.editor-container {
+.editor-content {
   flex: 1;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  overflow: auto;
-}
-
-.markdown-editor {
-  width: 100%;
-  height: 100%;
-  padding: 20px;
-  border: none;
-  resize: none;
-  font-family: monospace;
-}
-
-.ai-dialog {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.ai-dialog-content {
-  background-color: white;
-  padding: 20px;
+  overflow-y: auto;
+  background-color: v-bind('THEME_CONFIG.BACKGROUND_LIGHT');
   border-radius: 8px;
-  width: 600px;
-  max-height: 80vh;
-  overflow: auto;
+  padding: 24px;
 }
 
-.ai-suggestions {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
-  flex-wrap: wrap;
+.section-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  padding: 16px;
 }
 
-.ai-suggestions button {
-  padding: 8px 16px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
-  background-color: white;
+:deep(.el-form-item__label) {
+  color: v-bind('THEME_CONFIG.TEXT_PRIMARY');
 }
 
-.ai-dialog textarea {
-  width: 100%;
-  height: 100px;
-  padding: 10px;
-  margin-bottom: 15px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  resize: vertical;
+:deep(.el-input__inner) {
+  border-color: v-bind('THEME_CONFIG.BORDER');
 }
 
-.ai-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+:deep(.el-tabs__item) {
+  color: v-bind('THEME_CONFIG.TEXT_SECONDARY');
 }
 
-.ai-response {
-  margin-top: 20px;
-  padding: 15px;
-  background-color: #f5f5f5;
-  border-radius: 4px;
+:deep(.el-tabs__item.is-active) {
+  color: v-bind('THEME_CONFIG.PRIMARY');
 }
 
-:deep(.ql-container) {
-  height: calc(100vh - 200px);
+:deep(.el-tabs__active-bar) {
+  background-color: v-bind('THEME_CONFIG.PRIMARY');
 }
-</style> 
+</style>
