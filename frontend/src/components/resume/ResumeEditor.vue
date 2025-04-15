@@ -1,262 +1,326 @@
 <template>
-  <div class="resume-editor">
-    <div class="editor-header">
-      <div class="title-section">
-        <el-input
-          v-model="resume.title"
-          placeholder="我的简历"
-          class="title-input"
-        />
-      </div>
-      <div class="actions">
-        <el-button @click="goBack">返回</el-button>
-        <el-button type="primary" @click="saveResume">保存</el-button>
-      </div>
+    <div class="resume-editor">
+        <div v-if="loading" class="loading-container">
+            <el-skeleton :rows="10" animated />
+        </div>
+        <template v-else>
+            <div class="editor-header">
+                <div class="left">
+                    <h2 class="title-wrapper">
+                        {{ resume?.title || '未命名简历' }}
+                        <el-button class="edit-title-btn" type="primary" link @click="showEditTitleDialog">
+                            <el-icon><Edit /></el-icon>
+                        </el-button>
+                    </h2>
+                </div>
+                <div class="right">
+                    <el-button type="primary" @click="saveResume">
+                        <el-icon><Check /></el-icon>保存
+                    </el-button>
+                    <el-button @click="exportPDF">
+                        <el-icon><Download /></el-icon>导出PDF
+                    </el-button>
+                </div>
+            </div>
+
+            <!-- 标题编辑对话框 -->
+            <el-dialog
+                v-model="titleDialogVisible"
+                title="修改简历标题"
+                width="30%"
+                :close-on-click-modal="false"
+            >
+                <el-input
+                    v-model="editingTitle"
+                    placeholder="请输入简历标题"
+                    @keyup.enter="updateTitle"
+                />
+                <template #footer>
+                    <span class="dialog-footer">
+                        <el-button @click="titleDialogVisible = false">取消</el-button>
+                        <el-button type="primary" @click="updateTitle">确定</el-button>
+                    </span>
+                </template>
+            </el-dialog>
+
+            <div class="editor-content">
+                <div v-for="(section, sectionKey) in resume.content" :key="sectionKey" class="form-section">
+                    <h3>{{ section.chinese }}</h3>
+                    <el-form label-width="120px">
+                        <div v-for="(field, fieldKey) in section.data" :key="fieldKey" class="field-item">
+                            <el-form-item :label="field.chinese">
+                                <!-- 普通输入框 -->
+                                <el-input 
+                                    v-if="field.strategy === 'input'"
+                                    v-model="field.value"
+                                    :placeholder="field.chinese"
+                                    @change="updateFieldValue(section, fieldKey, $event)"
+                                />
+                                
+                                <!-- 下拉选择框 -->
+                                <el-select 
+                                    v-if="field.strategy === 'select'"
+                                    v-model="field.value"
+                                    :placeholder="field.chinese"
+                                    @change="updateFieldValue(section, fieldKey, $event)"
+                                >
+                                    <el-option
+                                        v-for="option in field.options"
+                                        :key="option.value"
+                                        :label="option.label"
+                                        :value="option.value"
+                                    />
+                                </el-select>
+                                
+                                <!-- 日期选择器 -->
+                                <el-date-picker
+                                    v-if="field.strategy === 'date'"
+                                    v-model="field.value"
+                                    type="date"
+                                    :placeholder="field.chinese"
+                                    format="YYYY-MM-DD"
+                                    value-format="YYYY-MM-DD"
+                                    @change="updateFieldValue(section, fieldKey, $event)"
+                                />
+                                
+                                <!-- 文本域 -->
+                                <el-input
+                                    v-if="field.strategy === 'textarea'"
+                                    v-model="field.value"
+                                    type="textarea"
+                                    :rows="3"
+                                    :placeholder="field.chinese"
+                                    @change="updateFieldValue(section, fieldKey, $event)"
+                                />
+                            </el-form-item>
+                        </div>
+                    </el-form>
+                </div>
+            </div>
+        </template>
     </div>
-
-    <div class="editor-content">
-      <el-tabs v-model="activeTab" class="section-tabs">
-        <el-tab-pane 
-          v-for="(section, key) in resumeSections" 
-          :key="key"
-          :label="section.title"
-          :name="key"
-        >
-          <div class="section-content">
-            <template v-for="(field, fieldKey) in section.fields" :key="fieldKey">
-              <!-- 输入框 -->
-              <template v-if="field.strategy === 'input'">
-                <el-form-item :label="field.chinese">
-                  <el-input 
-                    v-model="resume.content[key].data[fieldKey].value"
-                    :placeholder="'请输入' + field.chinese"
-                  />
-                </el-form-item>
-              </template>
-
-              <!-- 日期选择器 -->
-              <template v-else-if="field.strategy === 'date'">
-                <el-form-item :label="field.chinese">
-                  <el-date-picker
-                    v-model="resume.content[key].data[fieldKey].value"
-                    type="date"
-                    :placeholder="'请选择' + field.chinese"
-                  />
-                </el-form-item>
-              </template>
-
-              <!-- 选择器 -->
-              <template v-else-if="field.strategy === 'select'">
-                <el-form-item :label="field.chinese">
-                  <el-select
-                    v-model="resume.content[key].data[fieldKey].value"
-                    :placeholder="'请选择' + field.chinese"
-                  >
-                    <el-option
-                      v-for="option in field.options"
-                      :key="option.value"
-                      :label="option.label"
-                      :value="option.value"
-                    />
-                  </el-select>
-                </el-form-item>
-              </template>
-
-              <!-- 文本域 -->
-              <template v-else-if="field.strategy === 'textarea'">
-                <el-form-item :label="field.chinese">
-                  <el-input
-                    v-model="resume.content[key].data[fieldKey].value"
-                    type="textarea"
-                    :rows="4"
-                    :placeholder="'请输入' + field.chinese"
-                  />
-                </el-form-item>
-              </template>
-            </template>
-          </div>
-        </el-tab-pane>
-      </el-tabs>
-    </div>
-  </div>
 </template>
 
-<script>
-import { ref, reactive, onMounted } from 'vue'
+<script setup>
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { ArrowLeft, Check, Download, Edit } from '@element-plus/icons-vue'
 import { resumeService } from '@/services/resumeService'
-import { THEME_CONFIG } from '@/config/theme.config'
 
-export default {
-  name: 'ResumeEditor',
+const route = useRoute()
+const router = useRouter()
+const resumeId = route.params.id
+const resume = ref({
+    title: '',
+    content: {},
+    id: null,
+    updateTime: null
+})
+const loading = ref(true)
 
-  setup() {
-    const route = useRoute()
-    const router = useRouter()
-    const resumeId = route.params.id
-    const activeTab = ref('basic_info')
+// 标题编辑相关
+const titleDialogVisible = ref(false)
+const editingTitle = ref('')
 
-    // 简历数据
-    const resume = reactive({
-      id: null,
-      title: '',
-      content: {},
-      version: 1
-    })
-
-    // 简历各部分配置
-    const resumeSections = reactive({
-      basic_info: {
-        title: '基本信息',
-        fields: {}
-      },
-      education: {
-        title: '教育背景',
-        fields: {}
-      },
-      work_experience: {
-        title: '工作经验',
-        fields: {}
-      },
-      // ... 其他部分
-    })
-
-    // 获取简历模板
-    const fetchTemplate = async () => {
-      try {
-        // 这里应该从后端获取模板配置
-        // 暂时使用 mock 数据
-        const template = await resumeService.getTemplate()
-        Object.keys(template).forEach(key => {
-          if (resumeSections[key]) {
-            resumeSections[key].fields = template[key]
-          }
-        })
-      } catch (error) {
-        ElMessage.error('获取模板配置失败')
-        console.error(error)
-      }
-    }
-
-    // 获取简历数据
-    const fetchResumeData = async () => {
-      if (!resumeId) return
-      
-      try {
+// 获取简历详情
+const fetchResume = async () => {
+    try {
+        loading.value = true
         const data = await resumeService.getById(resumeId)
-        Object.assign(resume, data)
-      } catch (error) {
-        ElMessage.error('获取简历数据失败')
+        // 处理每个字段的默认值
+        Object.keys(data.content).forEach(sectionKey => {
+            const section = data.content[sectionKey]
+            Object.keys(section.data).forEach(fieldKey => {
+                const field = section.data[fieldKey]
+                field.value = field.value || field.default || ''
+            })
+        })
+        resume.value = data
+        console.log('获取简历详情', resume.value)
+    } catch (error) {
+        ElMessage.error('获取简历详情失败')
         console.error(error)
-      }
+    } finally {
+        loading.value = false
     }
+}
 
-    // 保存简历
-    const saveResume = async () => {
-      try {
-        if (resumeId) {
-          await resumeService.update(resumeId, resume)
-        } else {
-          await resumeService.create(resume)
-        }
+// 更新字段值
+const updateFieldValue = (section, fieldKey, value) => {
+    section.data[fieldKey].value = value
+}
+
+// 保存简历
+const saveResume = async () => {
+    try {
+        await resumeService.update(resumeId, resume.value)
         ElMessage.success('保存成功')
-        goBack()
-      } catch (error) {
+    } catch (error) {
         ElMessage.error('保存失败')
         console.error(error)
-      }
     }
-
-    // 返回列表页
-    const goBack = () => {
-      router.push('/resume/list')
-    }
-
-    onMounted(async () => {
-      await fetchTemplate()
-      if (resumeId) {
-        await fetchResumeData()
-      }
-    })
-
-    return {
-      resume,
-      activeTab,
-      resumeSections,
-      saveResume,
-      goBack,
-      THEME_CONFIG
-    }
-  }
 }
+
+// 导出PDF
+const exportPDF = async () => {
+    try {
+        const blob = await resumeService.exportPDF(resumeId)
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = '简历.pdf'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+    } catch (error) {
+        ElMessage.error('导出PDF失败')
+        console.error(error)
+    }
+}
+
+// 返回上一页
+const goBack = () => {
+    router.back()
+}
+
+// 获取表单组件
+const getFormComponent = (strategy) => {
+    switch (strategy) {
+        case 'input':
+            return 'el-input'
+        case 'select':
+            return 'el-select'
+        case 'date':
+            return 'el-date-picker'
+        case 'textarea':
+            return 'el-input'
+        default:
+            return 'el-input'
+    }
+}
+
+// 显示标题编辑对话框
+const showEditTitleDialog = () => {
+    editingTitle.value = resume.value.title || ''
+    titleDialogVisible.value = true
+}
+
+// 更新标题
+const updateTitle = () => {
+    if (!editingTitle.value.trim()) {
+        ElMessage.warning('标题不能为空')
+        return
+    }
+    resume.value.title = editingTitle.value.trim()
+    titleDialogVisible.value = false
+    ElMessage.success('标题修改成功')
+}
+
+onMounted(fetchResume)
 </script>
 
 <style scoped>
 .resume-editor {
-  padding: 20px;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
+    padding: 20px;
+}
+
+.loading-container {
+    padding: 20px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
 .editor-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  padding: 16px;
-  background-color: v-bind('THEME_CONFIG.BACKGROUND_LIGHT');
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
 }
 
-.title-section {
-  flex: 1;
-  margin-right: 24px;
+.editor-header .left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
 }
 
-.title-input {
-  width: 300px;
+.editor-header h2 {
+    margin: 0;
 }
 
-.actions {
-  display: flex;
-  gap: 12px;
+.editor-header .right {
+    display: flex;
+    gap: 12px;
 }
 
 .editor-content {
-  flex: 1;
-  overflow-y: auto;
-  background-color: v-bind('THEME_CONFIG.BACKGROUND_LIGHT');
-  border-radius: 8px;
-  padding: 24px;
+    max-width: 800px;
+    margin: 0 auto;
 }
 
-.section-content {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-  padding: 16px;
+.form-section {
+    margin-bottom: 32px;
+    padding: 24px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.form-section h3 {
+    margin-top: 0;
+    margin-bottom: 24px;
+    color: #303133;
+}
+
+.item-container {
+    margin-bottom: 24px;
+    padding: 16px;
+    border: 1px solid #ebeef5;
+    border-radius: 4px;
+}
+
+.item-container:last-child {
+    margin-bottom: 16px;
+}
+
+.field-item {
+    margin-bottom: 20px;
 }
 
 :deep(.el-form-item__label) {
-  color: v-bind('THEME_CONFIG.TEXT_PRIMARY');
+    font-weight: 500;
+    color: #606266;
 }
 
-:deep(.el-input__inner) {
-  border-color: v-bind('THEME_CONFIG.BORDER');
+:deep(.el-input), :deep(.el-select), :deep(.el-date-picker) {
+    width: 100%;
 }
 
-:deep(.el-tabs__item) {
-  color: v-bind('THEME_CONFIG.TEXT_SECONDARY');
+.right {
+    display: flex;
+    gap: 12px;
 }
 
-:deep(.el-tabs__item.is-active) {
-  color: v-bind('THEME_CONFIG.PRIMARY');
+.title-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-:deep(.el-tabs__active-bar) {
-  background-color: v-bind('THEME_CONFIG.PRIMARY');
+.edit-title-btn {
+    padding: 2px;
+    font-size: 16px;
+}
+
+:deep(.el-dialog__body) {
+    padding: 20px;
+}
+
+.dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
 }
 </style>

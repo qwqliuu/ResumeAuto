@@ -4,8 +4,17 @@ import { mockResumeService, mockAIService } from '@/mock/resumeService'
 
 // 是否使用mock数据，可以通过环境变量或配置文件控制
 const bUseMock = process.env.VUE_APP_USE_MOCK === 'true'
+console.log('bUseMock', bUseMock)
 
 class ResumeService {
+  // 获取新建简历模板
+  async getTemplate() {
+    if (bUseMock) {
+        return mockResumeService.getTemplate()
+    }
+    return http.get(API_CONFIG.RESUME.TEMPLATE)
+  }
+
   // 获取简历列表
   async getList() {
     if (bUseMock) {
@@ -23,11 +32,11 @@ class ResumeService {
   }
 
   // 创建简历
-  async create(data) {
+  async create() {
     if (bUseMock) {
-      return mockResumeService.create(data)
+      return mockResumeService.create()
     }
-    return http.post(API_CONFIG.RESUME.CREATE, data)
+    return http.post(API_CONFIG.RESUME.CREATE)
   }
 
   // 更新简历

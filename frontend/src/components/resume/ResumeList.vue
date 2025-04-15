@@ -31,104 +31,94 @@
   </div>
 </template>
 
-<script>
+<script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import { resumeService } from '@/services/resumeService'
 import { THEME_CONFIG } from '@/config/theme.config'
-import { Plus } from '@element-plus/icons-vue'
 
-export default {
-  name: 'ResumeList',
-  components: { Plus },
-  
-  setup() {
-    const router = useRouter()
-    const resumes = ref([])
+const router = useRouter()
+const resumes = ref([])
 
-    // 获取简历列表
-    const fetchResumes = async () => {
-      try {
-        const data = await resumeService.getList()
-        resumes.value = data
-      } catch (error) {
-        ElMessage.error('获取简历列表失败')
-        console.error(error)
-      }
-    }
-
-    // 新建简历
-    const createNewResume = () => {
-      router.push('/resume/editor')
-    }
-
-    // 打开简历
-    const openResume = (id) => {
-      router.push(`/resume/editor/${id}`)
-    }
-
-    // 导出PDF
-    const exportPDF = async (id) => {
-      try {
-        const blob = await resumeService.exportPDF(id)
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = '简历.pdf'
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-      } catch (error) {
-        ElMessage.error('导出PDF失败')
-        console.error(error)
-      }
-    }
-
-    // 删除简历
-    const confirmDelete = (id) => {
-      ElMessageBox.confirm('确定要删除这份简历吗？', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(async () => {
-        try {
-          await resumeService.delete(id)
-          ElMessage.success('删除成功')
-          fetchResumes()
-        } catch (error) {
-          ElMessage.error('删除失败')
-          console.error(error)
-        }
-      })
-    }
-
-    // 格式化日期
-    const formatDate = (dateString) => {
-      const date = new Date(dateString)
-      return date.toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    }
-
-    onMounted(fetchResumes)
-
-    return {
-      resumes,
-      createNewResume,
-      openResume,
-      exportPDF,
-      confirmDelete,
-      formatDate,
-      THEME_CONFIG
-    }
+// 获取简历列表
+const fetchResumes = async () => {
+  try {
+    const data = await resumeService.getList()
+    resumes.value = data
+  } catch (error) {
+    ElMessage.error('获取简历列表失败')
+    console.error(error)
   }
 }
+
+// 新建简历
+const createNewResume = async () => {
+  try {
+    const newResumeId = await resumeService.create()
+    console.log('createNewResumeId', newResumeId)
+    router.push(`/resume/editor/${newResumeId}`)
+  } catch (error) {
+    ElMessage.error('创建简历失败')
+    console.error(error)
+  }
+}
+
+// 打开简历
+const openResume = (id) => {
+  router.push(`/resume/editor/${id}`)
+}
+
+// 导出PDF
+const exportPDF = async (id) => {
+  try {
+    const blob = await resumeService.exportPDF(id)
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = '简历.pdf'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    ElMessage.error('导出PDF失败')
+    console.error(error)
+  }
+}
+
+// 删除简历
+const confirmDelete = (id) => {
+  ElMessageBox.confirm('确定要删除这份简历吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(async () => {
+    try {
+      await resumeService.delete(id)
+      ElMessage.success('删除成功')
+      fetchResumes()
+    } catch (error) {
+      ElMessage.error('删除失败')
+      console.error(error)
+    }
+  })
+}
+
+// 格式化日期
+const formatDate = (dateString) => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+onMounted(fetchResumes)
 </script>
 
 <style scoped>

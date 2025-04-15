@@ -2,6 +2,7 @@ export const API_CONFIG = {
   BASE_URL: process.env.VUE_APP_API_BASE_URL,
   TIMEOUT: parseInt(process.env.VUE_APP_API_TIMEOUT),
   RESUME: {
+    TEMPLATE: '/api/resumes/template',
     LIST: '/api/resumes',
     CREATE: '/api/resumes',
     UPDATE: '/api/resumes/{id}',
